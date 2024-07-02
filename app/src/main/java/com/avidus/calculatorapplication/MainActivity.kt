@@ -1,8 +1,10 @@
 package com.avidus.calculatorapplication
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import com.avidus.calculatorapplication.databinding.ActivityMainBinding
+import java.lang.Exception
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -11,111 +13,130 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
-        val view = binding.root
-        setContentView(view)
+        setContentView(binding.root)
 
-        val expressionEditText = binding.expressionEditText
-        val calculateButton = binding.calculateButton
-        val resultTextView = binding.resultTextView
+        binding.buttonAC.setOnClickListener {
+            clearTextViews()
+        }
 
-        calculateButton.setOnClickListener {
-            val expression = expressionEditText.text.toString()
-            try {
-                val result = eval(expression)
-                resultTextView.text = result.toString()
-            } catch (e: Exception) {
-                resultTextView.text = "Error"
-            }
+        binding.buttonEmpty.setOnClickListener {
+            removeLastCharacter()
+        }
+
+        binding.buttonEqual.setOnClickListener {
+            evaluateExpressionAndDisplayResult()
+        }
+
+        // You can set click listeners for other buttons if needed
+        val buttonClickListener = { buttonText: String ->
+            binding.Number.append(buttonText)
+        }
+
+        val buttons = listOf(
+            binding.button0, binding.button1, binding.button2, binding.button3,
+            binding.button4, binding.button5, binding.button6,
+            binding.button7, binding.button8, binding.button9
+        )
+
+        buttons.forEach { button ->
+            button.setOnClickListener { buttonClickListener(button.text.toString()) }
+        }
+
+        binding.buttonDot.setOnClickListener { buttonClickListener(".") }
+        binding.buttonDivide.setOnClickListener { buttonClickListener("/") }
+        binding.buttonMultiply.setOnClickListener { buttonClickListener("*") }
+        binding.buttonMinus.setOnClickListener { buttonClickListener("-") }
+        binding.buttonPlus.setOnClickListener { buttonClickListener("+") }
+    }
+
+    private fun clearTextViews() {
+        binding.Number.text = ""
+        binding.result.text = ""
+    }
+
+    private fun removeLastCharacter() {
+        val text = binding.Number.text.toString()
+        if (text.isNotEmpty()) {
+            binding.Number.text = text.dropLast(1)
         }
     }
 
-    fun eval(str: String): Double {
-        return object : Any() {
-            var pos = -1
-            var ch = 0
+    private fun evaluateExpressionAndDisplayResult() {
+        val expression = binding.Number.text.toString()
+        try {
+            val result = evaluateExpression(expression)
+            binding.result.text = result.toString()
+        } catch (e: Exception) {
+            binding.result.text = "Error"
+        }
+    }
 
-            fun nextChar() {
-                ch = if (++pos < str.length) str[pos].toInt() else -1
+    private fun evaluateExpression(expression: String): Double {
+        val values = Stack<Double>()
+        val operators = Stack<Char>()
+
+        var i = 0
+        while (i < expression.length) {
+            if (expression[i] == ' ') {
+                i++
+                continue
             }
 
-            fun eat(charToEat: Int): Boolean {
-                while (ch == ' '.toInt()) nextChar()
-                if (ch == charToEat) {
-                    nextChar()
-                    return true
+            if (expression[i].isDigit() || expression[i] == '.') {
+                val sb = StringBuilder()
+                while (i < expression.length && (expression[i].isDigit() || expression[i] == '.')) {
+                    sb.append(expression[i++])
                 }
-                return false
-            }
-
-            fun parse(): Double {
-                nextChar()
-                val x = parseExpression()
-                if (pos < str.length) throw RuntimeException("Unexpected: " + ch.toChar())
-                return x
-            }
-
-            // Grammar:
-            // expression = term | expression `+` term | expression `-` term
-            // term = factor | term `*` factor | term `/` factor
-            // factor = `+` factor | `-` factor | `(` expression `)`
-            //        | number | functionName factor | factor `^` factor
-
-            fun parseExpression(): Double {
-                var x = parseTerm()
-                while (true) {
-                    if (eat('+'.toInt())) {
-                        x += parseTerm() // addition
-                    } else if (eat('-'.toInt())) {
-                        x -= parseTerm() // subtraction
-                    } else {
-                        break
-                    }
+                values.push(sb.toString().toDouble())
+                i--
+            } else if (expression[i] == '(') {
+                operators.push(expression[i])
+            } else if (expression[i] == ')') {
+                while (operators.peek() != '(') {
+                    values.push(applyOp(operators.pop(), values.pop(), values.pop()))
                 }
-                return x
-            }
-
-            fun parseTerm(): Double {
-                var x = parseFactor()
-                while (true) {
-                    if (eat('*'.toInt())) {
-                        x *= parseFactor() // multiplication
-                    } else if (eat('/'.toInt())) {
-                        x /= parseFactor() // division
-                    } else {
-                        break
-                    }
+                operators.pop()
+            } else if (isOperator(expression[i])) {
+                while (!operators.isEmpty() && hasPrecedence(expression[i], operators.peek())) {
+                    values.push(applyOp(operators.pop(), values.pop(), values.pop()))
                 }
-                return x
+                operators.push(expression[i])
             }
+            i++
+        }
 
-            fun parseFactor(): Double {
-                if (eat('+'.toInt())) return parseFactor() // unary plus
-                if (eat('-'.toInt())) return -parseFactor() // unary minus
+        while (!operators.isEmpty()) {
+            values.push(applyOp(operators.pop(), values.pop(), values.pop()))
+        }
 
-                var x: Double
-                val startPos = this.pos
-                if (eat('('.toInt())) { // parentheses
-                    x = parseExpression()
-                    eat(')'.toInt())
-                } else if (ch >= '0'.toInt() && ch <= '9'.toInt() || ch == '.'.toInt()) { // numbers
-                    while (ch >= '0'.toInt() && ch <= '9'.toInt() || ch == '.'.toInt()) nextChar()
-                    x = str.substring(startPos, pos).toDouble()
-                } else if (ch >= 'a'.toInt() && ch <= 'z'.toInt()) { // functions
-                    while (ch >= 'a'.toInt() && ch <= 'z'.toInt()) nextChar()
-                    val func = str.substring(startPos, pos)
-                    x = parseFactor()
-                    x = when (func) {
-                        "sqrt" -> Math.sqrt(x)
-                        "sin" -> Math.sin(Math.toRadians(x))
-                        "cos" -> Math.cos(Math.toRadians(x))
-                        "tan" -> Math.tan(Math.toRadians(x))
-                        else -> throw RuntimeException("Unknown function: $func")
-                    }
-                } else {
-                    throw RuntimeException("Unexpected: " + ch.toChar())
-                }
-                return x
+        return values.pop()
+    }
+
+    private fun isOperator(c: Char): Boolean {
+        return c == '+' || c == '-' || c == '*' || c == '/' || c == '%'
+    }
+
+    private fun hasPrecedence(op1: Char, op2: Char): Boolean {
+        if (op2 == '(' || op2 == ')') {
+            return false
+        }
+        if ((op1 == '*' || op1 == '/' || op1 == '%') && (op2 == '+' || op2 == '-')) {
+            return false
+        }
+        return true
+    }
+
+    private fun applyOp(op: Char, b: Double, a: Double): Double {
+        return when (op) {
+            '+' -> a + b
+            '-' -> a - b
+            '*' -> a * b
+            '/' -> {
+                if (b == 0.0) throw UnsupportedOperationException("Cannot divide by zero")
+                a / b
             }
-        }.parse()
+            '%' -> a % b
+            else -> throw UnsupportedOperationException("Unknown operator $op")
+        }
     }
 }

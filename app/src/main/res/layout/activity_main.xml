@@ -14,7 +14,7 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/expressionEditText"
+            android:id="@+id/Number"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
@@ -28,7 +28,7 @@
             android:text="" />
 
         <TextView
-            android:id="@+id/resultTextView"
+            android:id="@+id/result"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
@@ -51,7 +51,7 @@
             android:text="AC" />
 
         <Button
-            android:id="@+id/buttonClear"
+            android:id="@+id/buttonEmpty"
             style="@style/buttonBox"
             android:layout_weight="2"
             android:text="DEL" />
@@ -148,7 +148,7 @@
             android:text="0" />
 
         <Button
-            android:id="@+id/calculateButton"
+            android:id="@+id/buttonEqual"
             style="@style/buttonBox"
             android:layout_weight="2"
             android:background="@android:color/holo_orange_dark"
